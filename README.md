@@ -4,11 +4,11 @@ Export from Elasticsearch to CSV files and import CSV files to Elasticsearch.
 
 ## Usage
 
-Export from Elasticsearch to CSV file
+Export from Elasticsearch to a CSV file
 
     lein run -m active-escsv.export
 
-Import a CSV file to Elasticsearch
+Import a CSV file into Elasticsearch
 
     lein run -m active-escsv.import
 
