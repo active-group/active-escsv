@@ -126,7 +126,19 @@
                 new-total-count (+ total-count cnt)]
             (log/debug "Received" cnt "rows (" new-total-count ")")
             (log/debug "Writing" cnt "rows (" new-total-count ") to Elasticsearch")
-            (async/>! input-ch (bulkize-data index type data))
+            (async/>! input-ch (bulkize-data index type
+                                             (map (fn [row]
+                                                    ;; export saves all fields --
+                                                    ;; remove empty fields here to
+                                                    ;; avoid a bunch of unneeded
+                                                    ;; data in Elasticsearch
+                                                    (reduce-kv (fn [m k v]
+                                                                 (if (empty? v)
+                                                                   m
+                                                                   (assoc m k v)))
+                                                               {}
+                                                               (zipmap headers row)))
+                                                  data)))
             (let [[job responses] (async/<! output-ch)
                   errors? (get-in responses [:body :errors])]
               (if errors?

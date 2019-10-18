@@ -62,30 +62,23 @@
   (log/info "Starting reading CSV loop.")
   (let [gz? (ends-with-gz? filename)
         _ (when gz? (log/info "GUnZipping" filename))
-        in (clojure.java.io/input-stream filename)
-        maybe-zip  (if gz?
-                     (java.util.zip.GZIPInputStream. in)
-                     in)
-        reader (java.io.BufferedReader. (java.io.InputStreamReader. maybe-zip))
-        ch (async/chan)
-        raw-data (csv/parse-csv reader)
-        headers (first raw-data)]
-     [headers
-      (async/go
-        (doseq [data (partition-all 1000 (map (fn [row]
-                                                ;; export saves all fields --
-                                                ;; remove empty fields here to
-                                                ;; avoid a bunch of unneeded
-                                                ;; data in Elasticsearch
-                                                (reduce-kv (fn [m k v]
-                                                             (if (empty? v)
-                                                               m
-                                                               (assoc m k v)))
-                                                           {}
-                                                           (zipmap headers row)))
-                                               (rest raw-data)))]
-          (async/>! channel data))
-        (.close reader)
-        (when gz? (.close maybe-zip))
-        (.close in)
-        (log/info "Done reading CSV loop."))]))
+        with-csv
+        (fn [f]
+          (let [in (clojure.java.io/input-stream filename)
+                maybe-zip  (if gz?
+                             (java.util.zip.GZIPInputStream. in)
+                             in)
+                reader (java.io.BufferedReader. (java.io.InputStreamReader. maybe-zip))]
+            (f reader)))]
+     [(with-csv
+        (fn [reader]
+          (let [header (first (parse-csv reader))]
+            (.close reader)
+            header)))
+      (with-csv
+        (fn [reader]
+          (async/go
+            (doseq [data (partition-all 1000 (rest (csv/parse-csv reader)))]
+              (async/>! channel data))
+            (.close reader)
+            (log/info "Done reading CSV loop."))))]))
