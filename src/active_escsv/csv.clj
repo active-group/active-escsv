@@ -62,23 +62,14 @@
   (log/info "Starting reading CSV loop.")
   (let [gz? (ends-with-gz? filename)
         _ (when gz? (log/info "GUnZipping" filename))
-        with-csv
-        (fn [f]
-          (let [in (clojure.java.io/input-stream filename)
-                maybe-zip  (if gz?
-                             (java.util.zip.GZIPInputStream. in)
-                             in)
-                reader (java.io.BufferedReader. (java.io.InputStreamReader. maybe-zip))]
-            (f reader)))]
-     [(with-csv
-        (fn [reader]
-          (let [header (first (parse-csv reader))]
-            (.close reader)
-            header)))
-      (with-csv
-        (fn [reader]
-          (async/go
-            (doseq [data (partition-all 1000 (rest (csv/parse-csv reader)))]
-              (async/>! channel data))
-            (.close reader)
-            (log/info "Done reading CSV loop."))))]))
+        in (clojure.java.io/input-stream filename)
+        maybe-zip  (if gz?
+                     (java.util.zip.GZIPInputStream. in)
+                     in)
+        reader (java.io.BufferedReader. (java.io.InputStreamReader. maybe-zip))]
+    [(first (parse-csv reader))
+     (async/go
+       (doseq [data (partition-all 1000 (rest (csv/parse-csv reader)))]
+         (async/>! channel data))
+       (.close reader)
+       (log/info "Done reading CSV loop."))]))
